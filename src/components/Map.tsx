@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import type { Melding, Filters } from "@/types";
+import { useMeldingen, type MeldingenGeoJSON } from "@/hooks/useMeldingen";
 
 interface MapProps {
   filters: Filters;
@@ -15,6 +16,9 @@ export default function Map({ filters, onMeldingClick, selectedMelding }: MapPro
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<maplibregl.Map | null>(null);
   const [loaded, setLoaded] = useState(false);
+
+  // Use the shared hook to fetch meldingen as GeoJSON
+  const { data: meldingenData } = useMeldingen(filters);
 
   useEffect(() => {
     if (!mapContainer.current || map.current) return;
@@ -47,13 +51,23 @@ export default function Map({ filters, onMeldingClick, selectedMelding }: MapPro
       zoom: 12,
     });
 
+    // Add zoom and rotation controls
+    map.current.addControl(
+      new maplibregl.NavigationControl({
+        showCompass: true,
+        showZoom: true,
+        visualizePitch: true,
+      }),
+      "top-right"
+    );
+
     map.current.on("load", () => {
       if (!map.current) return;
 
-      // Add meldingen MVT source
+      // Add meldingen GeoJSON source (empty initially)
       map.current.addSource("meldingen", {
-        type: "vector",
-        url: "https://api.data.amsterdam.nl/v1/mvt/meldingen/tilejson.json",
+        type: "geojson",
+        data: { type: "FeatureCollection", features: [] },
       });
 
       // Meldingen layer - open (red)
@@ -61,11 +75,7 @@ export default function Map({ filters, onMeldingClick, selectedMelding }: MapPro
         id: "meldingen-open",
         type: "circle",
         source: "meldingen",
-        "source-layer": "meldingen",
-        filter: ["all",
-          ["==", ["get", "hoofdcategorie"], "Afval"],
-          ["==", ["get", "externeStatus"], "open"]
-        ],
+        filter: ["==", ["get", "externeStatus"], "Open"],
         paint: {
           "circle-radius": [
             "interpolate", ["linear"], ["zoom"],
@@ -84,11 +94,7 @@ export default function Map({ filters, onMeldingClick, selectedMelding }: MapPro
         id: "meldingen-closed",
         type: "circle",
         source: "meldingen",
-        "source-layer": "meldingen",
-        filter: ["all",
-          ["==", ["get", "hoofdcategorie"], "Afval"],
-          ["==", ["get", "externeStatus"], "afgesloten"]
-        ],
+        filter: ["==", ["get", "externeStatus"], "Afgesloten"],
         paint: {
           "circle-radius": [
             "interpolate", ["linear"], ["zoom"],
@@ -130,7 +136,7 @@ export default function Map({ filters, onMeldingClick, selectedMelding }: MapPro
       });
 
       // Click handler for meldingen
-      map.current.on("click", "meldingen-open", (e) => {
+      const handleMeldingClick = (e: maplibregl.MapLayerMouseEvent) => {
         if (e.features && e.features[0]) {
           const props = e.features[0].properties;
           const geom = e.features[0].geometry;
@@ -143,9 +149,9 @@ export default function Map({ filters, onMeldingClick, selectedMelding }: MapPro
               tijdstipMelding: props?.tijdstipMelding || "",
               externeStatus: props?.externeStatus || "",
               doorlooptijdDagen: props?.doorlooptijdDagen || null,
-              buurtNaam: props?.buurtNaam || "",
-              wijkNaam: props?.wijkNaam || "",
-              stadsdeelNaam: props?.stadsdeelNaam || "",
+              buurtNaam: props?.gbdBuurtNaam || "",
+              wijkNaam: props?.gbdWijkNaam || "",
+              stadsdeelNaam: props?.gbdStadsdeelNaam || "",
               geometry: {
                 type: "Point",
                 coordinates: geom.coordinates as [number, number],
@@ -153,32 +159,10 @@ export default function Map({ filters, onMeldingClick, selectedMelding }: MapPro
             });
           }
         }
-      });
+      };
 
-      map.current.on("click", "meldingen-closed", (e) => {
-        if (e.features && e.features[0]) {
-          const props = e.features[0].properties;
-          const geom = e.features[0].geometry;
-          if (geom.type === "Point") {
-            onMeldingClick({
-              id: props?.id || "",
-              hoofdcategorie: props?.hoofdcategorie || "",
-              subcategorie: props?.subcategorie || "",
-              datumMelding: props?.datumMelding || "",
-              tijdstipMelding: props?.tijdstipMelding || "",
-              externeStatus: props?.externeStatus || "",
-              doorlooptijdDagen: props?.doorlooptijdDagen || null,
-              buurtNaam: props?.buurtNaam || "",
-              wijkNaam: props?.wijkNaam || "",
-              stadsdeelNaam: props?.stadsdeelNaam || "",
-              geometry: {
-                type: "Point",
-                coordinates: geom.coordinates as [number, number],
-              },
-            });
-          }
-        }
-      });
+      map.current.on("click", "meldingen-open", handleMeldingClick);
+      map.current.on("click", "meldingen-closed", handleMeldingClick);
 
       // Cursor change on hover
       map.current.on("mouseenter", "meldingen-open", () => {
@@ -204,49 +188,22 @@ export default function Map({ filters, onMeldingClick, selectedMelding }: MapPro
     };
   }, []);
 
-  function getTimeRangeCutoffDate(timeRange: string): string {
-    const now = new Date();
-    let cutoff: Date;
-    switch (timeRange) {
-      case "1h":
-        cutoff = new Date(now.getTime() - 1 * 60 * 60 * 1000);
-        break;
-      case "24h":
-        cutoff = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-        break;
-      case "7d":
-        cutoff = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-        break;
-      case "30d":
-        cutoff = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-        break;
-      default:
-        cutoff = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-    }
-    return cutoff.toISOString().split("T")[0]; // Return YYYY-MM-DD format
-  }
+  // Update meldingen data when it changes
+  useEffect(() => {
+    if (!map.current || !loaded) return;
 
-  // Update layer visibility and filters based on filters
+    const source = map.current.getSource("meldingen") as maplibregl.GeoJSONSource;
+    if (source) {
+      source.setData(meldingenData as unknown as GeoJSON.FeatureCollection);
+    }
+  }, [meldingenData, loaded]);
+
+  // Update layer visibility based on status filter
   useEffect(() => {
     if (!map.current || !loaded) return;
 
     const showOpen = filters.status === "all" || filters.status === "open";
     const showClosed = filters.status === "all" || filters.status === "afgesloten";
-    const cutoffDate = getTimeRangeCutoffDate(filters.timeRange);
-
-    // Update open layer filter with time range
-    map.current.setFilter("meldingen-open", ["all",
-      ["==", ["get", "hoofdcategorie"], "Afval"],
-      ["==", ["get", "externeStatus"], "open"],
-      [">=", ["get", "datumMelding"], cutoffDate]
-    ]);
-
-    // Update closed layer filter with time range
-    map.current.setFilter("meldingen-closed", ["all",
-      ["==", ["get", "hoofdcategorie"], "Afval"],
-      ["==", ["get", "externeStatus"], "afgesloten"],
-      [">=", ["get", "datumMelding"], cutoffDate]
-    ]);
 
     map.current.setLayoutProperty(
       "meldingen-open",
@@ -258,7 +215,18 @@ export default function Map({ filters, onMeldingClick, selectedMelding }: MapPro
       "visibility",
       showClosed ? "visible" : "none"
     );
-  }, [filters.status, filters.timeRange, loaded]);
+  }, [filters.status, loaded]);
+
+  // Update containers visibility
+  useEffect(() => {
+    if (!map.current || !loaded) return;
+
+    map.current.setLayoutProperty(
+      "containers",
+      "visibility",
+      filters.showContainers ? "visible" : "none"
+    );
+  }, [filters.showContainers, loaded]);
 
   // Fly to selected melding
   useEffect(() => {

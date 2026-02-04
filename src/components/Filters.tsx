@@ -61,6 +61,18 @@ export default function Filters({ filters, onChange }: FiltersProps) {
         </div>
       </div>
 
+      <div className="flex items-center gap-2">
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={filters.showContainers}
+            onChange={(e) => onChange({ ...filters, showContainers: e.target.checked })}
+            className="w-4 h-4 rounded border-gray-600 bg-gray-800 text-blue-600 focus:ring-blue-500 focus:ring-offset-gray-900"
+          />
+          <span className="text-sm text-gray-400">Toon containers</span>
+        </label>
+      </div>
+
       <div className="flex items-center gap-2 ml-auto">
         <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
         <span className="text-sm text-gray-400">Live</span>

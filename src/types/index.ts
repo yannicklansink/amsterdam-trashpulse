@@ -29,6 +29,7 @@ export interface Filters {
   timeRange: "1h" | "24h" | "7d" | "30d";
   status: "all" | "open" | "afgesloten";
   subcategorie: string[];
+  showContainers: boolean;
 }
 
 export interface Hotspot {

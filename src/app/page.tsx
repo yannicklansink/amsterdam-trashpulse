@@ -29,6 +29,7 @@ function HomeContent() {
     timeRange: (searchParams.get("range") as FiltersType["timeRange"]) || "24h",
     status: (searchParams.get("status") as FiltersType["status"]) || "all",
     subcategorie: searchParams.get("sub")?.split(",").filter(Boolean) || [],
+    showContainers: searchParams.get("containers") !== "false",
   });
 
   const [view, setView] = useState<View>(
@@ -43,6 +44,7 @@ function HomeContent() {
     params.set("range", filters.timeRange);
     if (filters.status !== "all") params.set("status", filters.status);
     if (filters.subcategorie.length > 0) params.set("sub", filters.subcategorie.join(","));
+    if (!filters.showContainers) params.set("containers", "false");
     params.set("view", view);
     router.replace(`?${params.toString()}`, { scroll: false });
   }, [filters, view, router]);
@@ -96,18 +98,41 @@ function HomeContent() {
           />
 
           <div className="absolute bottom-4 left-4 bg-gray-900/90 backdrop-blur p-3 rounded-lg text-sm">
+            <div className="text-xs text-gray-500 uppercase tracking-wide mb-2">Meldingen</div>
             <div className="flex items-center gap-2 mb-1">
               <span className="w-3 h-3 rounded-full bg-red-500" />
-              <span className="text-gray-300">Open melding</span>
+              <span className="text-gray-300">Open</span>
             </div>
-            <div className="flex items-center gap-2 mb-1">
+            <div className="flex items-center gap-2 mb-3">
               <span className="w-3 h-3 rounded-full bg-green-500" />
-              <span className="text-gray-300">Gesloten melding</span>
+              <span className="text-gray-300">Gesloten</span>
             </div>
-            <div className="flex items-center gap-2">
-              <span className="w-3 h-3 rounded-full bg-gray-500" />
-              <span className="text-gray-300">Container</span>
-            </div>
+
+            {filters.showContainers && (
+              <>
+                <div className="text-xs text-gray-500 uppercase tracking-wide mb-2">Containers</div>
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="w-3 h-3 rounded-full" style={{ backgroundColor: "#6b7280" }} />
+                  <span className="text-gray-300">Rest</span>
+                </div>
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="w-3 h-3 rounded-full" style={{ backgroundColor: "#3b82f6" }} />
+                  <span className="text-gray-300">Papier</span>
+                </div>
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="w-3 h-3 rounded-full" style={{ backgroundColor: "#10b981" }} />
+                  <span className="text-gray-300">Glas</span>
+                </div>
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="w-3 h-3 rounded-full" style={{ backgroundColor: "#8b5cf6" }} />
+                  <span className="text-gray-300">Textiel</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="w-3 h-3 rounded-full" style={{ backgroundColor: "#f59e0b" }} />
+                  <span className="text-gray-300">Plastic</span>
+                </div>
+              </>
+            )}
           </div>
         </div>
 
