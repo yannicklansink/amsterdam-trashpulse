@@ -1,7 +1,10 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import type { Filters } from "@/types";
+
+// Debounce delay in ms
+const DEBOUNCE_DELAY = 300;
 
 export interface MeldingFeature {
   type: "Feature";
@@ -50,6 +53,8 @@ export function useMeldingen(filters: Filters) {
     features: [],
   });
   const [loading, setLoading] = useState(true);
+  const debounceRef = useRef<NodeJS.Timeout | null>(null);
+  const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const fetchMeldingen = useCallback(async () => {
     try {
@@ -98,10 +103,24 @@ export function useMeldingen(filters: Filters) {
   }, [filters.timeRange, filters.status]);
 
   useEffect(() => {
+    // Clear previous debounce and interval
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    if (intervalRef.current) clearInterval(intervalRef.current);
+
+    // Set loading but keep previous data visible
     setLoading(true);
-    fetchMeldingen();
-    const interval = setInterval(fetchMeldingen, 30000);
-    return () => clearInterval(interval);
+
+    // Debounce the fetch call
+    debounceRef.current = setTimeout(() => {
+      fetchMeldingen();
+      // Set up refresh interval after initial fetch
+      intervalRef.current = setInterval(fetchMeldingen, 30000);
+    }, DEBOUNCE_DELAY);
+
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
   }, [fetchMeldingen]);
 
   return { data, loading, refetch: fetchMeldingen };

@@ -1,7 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import type { Melding, Filters } from "@/types";
+
+const DEBOUNCE_DELAY = 300;
 
 interface TickerProps {
   filters: Filters;
@@ -9,15 +11,55 @@ interface TickerProps {
   selectedMelding: Melding | null;
 }
 
+// Skeleton component for loading state
+function SkeletonItem() {
+  return (
+    <li className="p-3 animate-pulse">
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex-1 min-w-0">
+          <div className="h-4 bg-gray-700 rounded w-3/4 mb-2" />
+          <div className="h-3 bg-gray-800 rounded w-1/2" />
+        </div>
+        <div className="flex flex-col items-end gap-1">
+          <div className="h-5 bg-gray-700 rounded w-16" />
+          <div className="h-3 bg-gray-800 rounded w-12" />
+        </div>
+      </div>
+    </li>
+  );
+}
+
 export default function Ticker({ filters, onMeldingClick, selectedMelding }: TickerProps) {
   const [meldingen, setMeldingen] = useState<Melding[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const debounceRef = useRef<NodeJS.Timeout | null>(null);
+  const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
-    fetchMeldingen();
-    const interval = setInterval(fetchMeldingen, 30000);
-    return () => clearInterval(interval);
-  }, [filters]);
+    // Clear previous debounce and interval
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    if (intervalRef.current) clearInterval(intervalRef.current);
+
+    // Show refreshing indicator if we have data, loading if not
+    if (meldingen.length > 0) {
+      setIsRefreshing(true);
+    } else {
+      setLoading(true);
+    }
+
+    // Debounce the fetch call
+    debounceRef.current = setTimeout(() => {
+      fetchMeldingen();
+      // Set up refresh interval after initial fetch
+      intervalRef.current = setInterval(fetchMeldingen, 30000);
+    }, DEBOUNCE_DELAY);
+
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
+  }, [filters.timeRange, filters.status]);
 
   function getTimeRangeCutoff(timeRange: string): Date {
     const now = new Date();
@@ -36,7 +78,6 @@ export default function Ticker({ filters, onMeldingClick, selectedMelding }: Tic
   }
 
   async function fetchMeldingen() {
-    setLoading(true);
     try {
       // Fetch more data for longer time ranges
       const pageSize = filters.timeRange === "30d" ? "200" : filters.timeRange === "7d" ? "100" : "50";
@@ -95,6 +136,7 @@ export default function Ticker({ filters, onMeldingClick, selectedMelding }: Tic
       console.error("Failed to fetch meldingen:", err);
     } finally {
       setLoading(false);
+      setIsRefreshing(false);
     }
   }
 
@@ -122,17 +164,31 @@ export default function Ticker({ filters, onMeldingClick, selectedMelding }: Tic
   return (
     <div className="h-full flex flex-col">
       <div className="p-4 border-b border-gray-800">
-        <h2 className="text-lg font-semibold">Live Feed</h2>
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-semibold">Live Feed</h2>
+          {isRefreshing && (
+            <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+          )}
+        </div>
         <p className="text-sm text-gray-400">
-          {meldingen.length} meldingen ({getTimeRangeLabel(filters.timeRange)})
+          {loading ? "Laden..." : `${meldingen.length} meldingen (${getTimeRangeLabel(filters.timeRange)})`}
         </p>
       </div>
 
       <div className="flex-1 overflow-y-auto">
         {loading && meldingen.length === 0 ? (
-          <div className="p-4 text-gray-400">Laden...</div>
-        ) : (
+          // Show skeleton while initial loading
           <ul className="divide-y divide-gray-800">
+            {[...Array(8)].map((_, i) => (
+              <SkeletonItem key={i} />
+            ))}
+          </ul>
+        ) : meldingen.length === 0 ? (
+          <div className="p-4 text-gray-400 text-center">
+            Geen meldingen gevonden in deze periode
+          </div>
+        ) : (
+          <ul className={`divide-y divide-gray-800 ${isRefreshing ? "opacity-60" : ""}`}>
             {meldingen.map((m) => (
               <li
                 key={m.id}
