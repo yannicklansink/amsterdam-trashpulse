@@ -16,6 +16,7 @@ export default function Map({ filters, onMeldingClick, selectedMelding }: MapPro
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<maplibregl.Map | null>(null);
   const [loaded, setLoaded] = useState(false);
+  const pulseAnimation = useRef<number | null>(null);
 
   // Use the shared hook to fetch meldingen as GeoJSON
   const { data: meldingenData } = useMeldingen(filters);
@@ -231,6 +232,40 @@ export default function Map({ filters, onMeldingClick, selectedMelding }: MapPro
         },
       });
 
+      // === SELECTED MELDING HIGHLIGHT (added last so it appears on top) ===
+      map.current.addSource("selected-melding", {
+        type: "geojson",
+        data: { type: "FeatureCollection", features: [] },
+      });
+
+      // Outer pulsing ring
+      map.current.addLayer({
+        id: "selected-melding-pulse",
+        type: "circle",
+        source: "selected-melding",
+        paint: {
+          "circle-radius": 25,
+          "circle-color": "transparent",
+          "circle-stroke-width": 3,
+          "circle-stroke-color": "#fbbf24",
+          "circle-stroke-opacity": 0.8,
+        },
+      });
+
+      // Inner highlight circle
+      map.current.addLayer({
+        id: "selected-melding-highlight",
+        type: "circle",
+        source: "selected-melding",
+        paint: {
+          "circle-radius": 12,
+          "circle-color": "#fbbf24",
+          "circle-opacity": 0.4,
+          "circle-stroke-width": 3,
+          "circle-stroke-color": "#fbbf24",
+        },
+      });
+
       // === CLICK HANDLERS ===
       const handleMeldingClick = (e: maplibregl.MapLayerMouseEvent) => {
         if (e.features && e.features[0]) {
@@ -351,15 +386,75 @@ export default function Map({ filters, onMeldingClick, selectedMelding }: MapPro
     );
   }, [filters.showContainers, loaded]);
 
-  // Fly to selected melding
+  // Fly to selected melding and show highlight with pulse animation
   useEffect(() => {
-    if (!map.current || !selectedMelding) return;
-    map.current.flyTo({
-      center: selectedMelding.geometry.coordinates,
-      zoom: 15,
-      duration: 1000,
-    });
-  }, [selectedMelding]);
+    if (!map.current || !loaded) return;
+
+    const source = map.current.getSource("selected-melding") as maplibregl.GeoJSONSource;
+    if (!source) return;
+
+    // Cancel any existing animation
+    if (pulseAnimation.current) {
+      cancelAnimationFrame(pulseAnimation.current);
+      pulseAnimation.current = null;
+    }
+
+    if (selectedMelding && selectedMelding.id !== "hotspot") {
+      // Update highlight position
+      source.setData({
+        type: "FeatureCollection",
+        features: [{
+          type: "Feature",
+          geometry: selectedMelding.geometry,
+          properties: {},
+        }],
+      });
+
+      // Start pulse animation
+      let start: number | null = null;
+      const animatePulse = (timestamp: number) => {
+        if (!map.current) return;
+        if (!start) start = timestamp;
+        const elapsed = timestamp - start;
+
+        // Pulse between radius 20 and 35 over 1.5 seconds
+        const progress = (elapsed % 1500) / 1500;
+        const radius = 20 + Math.sin(progress * Math.PI * 2) * 7.5;
+        const opacity = 0.9 - Math.sin(progress * Math.PI * 2) * 0.4;
+
+        try {
+          map.current.setPaintProperty("selected-melding-pulse", "circle-radius", radius);
+          map.current.setPaintProperty("selected-melding-pulse", "circle-stroke-opacity", opacity);
+        } catch {
+          // Layer might not exist yet
+        }
+
+        pulseAnimation.current = requestAnimationFrame(animatePulse);
+      };
+
+      pulseAnimation.current = requestAnimationFrame(animatePulse);
+
+      // Fly to location
+      map.current.flyTo({
+        center: selectedMelding.geometry.coordinates,
+        zoom: 15,
+        duration: 1000,
+      });
+    } else {
+      // Clear highlight when no melding is selected
+      source.setData({
+        type: "FeatureCollection",
+        features: [],
+      });
+    }
+
+    return () => {
+      if (pulseAnimation.current) {
+        cancelAnimationFrame(pulseAnimation.current);
+        pulseAnimation.current = null;
+      }
+    };
+  }, [selectedMelding, loaded]);
 
   async function loadContainers() {
     try {
