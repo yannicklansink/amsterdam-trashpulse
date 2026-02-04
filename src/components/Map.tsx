@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useMemo } from "react";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import type { Melding, Filters } from "@/types";
-import { useMeldingen, type MeldingenGeoJSON } from "@/hooks/useMeldingen";
+import { useMeldingen, type MeldingFeature } from "@/hooks/useMeldingen";
 
 interface MapProps {
   filters: Filters;
@@ -19,6 +19,25 @@ export default function Map({ filters, onMeldingClick, selectedMelding }: MapPro
 
   // Use the shared hook to fetch meldingen as GeoJSON
   const { data: meldingenData } = useMeldingen(filters);
+
+  // Split data into open and closed
+  const { openData, closedData } = useMemo(() => {
+    const open: MeldingFeature[] = [];
+    const closed: MeldingFeature[] = [];
+
+    for (const feature of meldingenData.features) {
+      if (feature.properties.externeStatus === "Open") {
+        open.push(feature);
+      } else {
+        closed.push(feature);
+      }
+    }
+
+    return {
+      openData: { type: "FeatureCollection" as const, features: open },
+      closedData: { type: "FeatureCollection" as const, features: closed },
+    };
+  }, [meldingenData]);
 
   useEffect(() => {
     if (!mapContainer.current || map.current) return;
@@ -64,108 +83,134 @@ export default function Map({ filters, onMeldingClick, selectedMelding }: MapPro
     map.current.on("load", () => {
       if (!map.current) return;
 
-      // Add meldingen GeoJSON source with clustering
-      map.current.addSource("meldingen", {
+      // === OPEN MELDINGEN (RED) - Separate source with clustering ===
+      map.current.addSource("meldingen-open", {
         type: "geojson",
         data: { type: "FeatureCollection", features: [] },
         cluster: true,
         clusterMaxZoom: 14,
-        clusterRadius: 50,
+        clusterRadius: 40,
       });
 
-      // Cluster circles
+      // Open clusters (red)
       map.current.addLayer({
-        id: "meldingen-clusters",
+        id: "meldingen-open-clusters",
         type: "circle",
-        source: "meldingen",
+        source: "meldingen-open",
         filter: ["has", "point_count"],
         paint: {
-          "circle-color": [
-            "step",
-            ["get", "point_count"],
-            "#3b82f6",  // blue for small clusters
-            10, "#f59e0b",  // orange for medium
-            50, "#ef4444",  // red for large
-          ],
+          "circle-color": "#ef4444",
           "circle-radius": [
             "step",
             ["get", "point_count"],
-            15,   // 15px for < 10
-            10, 20,   // 20px for 10-50
-            50, 25,   // 25px for > 50
+            12, 5, 16, 20, 20,
           ],
           "circle-stroke-width": 2,
           "circle-stroke-color": "#ffffff",
         },
       });
 
-      // Cluster count labels
+      // Open cluster count
       map.current.addLayer({
-        id: "meldingen-cluster-count",
+        id: "meldingen-open-cluster-count",
         type: "symbol",
-        source: "meldingen",
+        source: "meldingen-open",
         filter: ["has", "point_count"],
         layout: {
           "text-field": "{point_count_abbreviated}",
-          "text-font": ["Open Sans Bold", "Arial Unicode MS Bold"],
-          "text-size": 12,
+          "text-size": 11,
         },
         paint: {
           "text-color": "#ffffff",
         },
       });
 
-      // Meldingen layer - open (red) - unclustered points only
+      // Open unclustered points
       map.current.addLayer({
-        id: "meldingen-open",
+        id: "meldingen-open-points",
         type: "circle",
-        source: "meldingen",
-        filter: ["all",
-          ["!", ["has", "point_count"]],
-          ["==", ["get", "externeStatus"], "Open"]
-        ],
+        source: "meldingen-open",
+        filter: ["!", ["has", "point_count"]],
+        paint: {
+          "circle-radius": [
+            "interpolate", ["linear"], ["zoom"],
+            10, 4,
+            15, 8
+          ],
+          "circle-color": "#ef4444",
+          "circle-opacity": 0.9,
+          "circle-stroke-width": 1,
+          "circle-stroke-color": "#ffffff",
+        },
+      });
+
+      // === CLOSED MELDINGEN (GREEN) - Separate source with clustering ===
+      map.current.addSource("meldingen-closed", {
+        type: "geojson",
+        data: { type: "FeatureCollection", features: [] },
+        cluster: true,
+        clusterMaxZoom: 14,
+        clusterRadius: 40,
+      });
+
+      // Closed clusters (green)
+      map.current.addLayer({
+        id: "meldingen-closed-clusters",
+        type: "circle",
+        source: "meldingen-closed",
+        filter: ["has", "point_count"],
+        paint: {
+          "circle-color": "#22c55e",
+          "circle-radius": [
+            "step",
+            ["get", "point_count"],
+            12, 5, 16, 20, 20,
+          ],
+          "circle-stroke-width": 2,
+          "circle-stroke-color": "#ffffff",
+        },
+      });
+
+      // Closed cluster count
+      map.current.addLayer({
+        id: "meldingen-closed-cluster-count",
+        type: "symbol",
+        source: "meldingen-closed",
+        filter: ["has", "point_count"],
+        layout: {
+          "text-field": "{point_count_abbreviated}",
+          "text-size": 11,
+        },
+        paint: {
+          "text-color": "#ffffff",
+        },
+      });
+
+      // Closed unclustered points
+      map.current.addLayer({
+        id: "meldingen-closed-points",
+        type: "circle",
+        source: "meldingen-closed",
+        filter: ["!", ["has", "point_count"]],
         paint: {
           "circle-radius": [
             "interpolate", ["linear"], ["zoom"],
             10, 3,
-            15, 8
+            15, 6
           ],
-          "circle-color": "#ef4444",
+          "circle-color": "#22c55e",
           "circle-opacity": 0.8,
           "circle-stroke-width": 1,
           "circle-stroke-color": "#ffffff",
         },
       });
 
-      // Meldingen layer - closed (green) - unclustered points only
-      map.current.addLayer({
-        id: "meldingen-closed",
-        type: "circle",
-        source: "meldingen",
-        filter: ["all",
-          ["!", ["has", "point_count"]],
-          ["==", ["get", "externeStatus"], "Afgesloten"]
-        ],
-        paint: {
-          "circle-radius": [
-            "interpolate", ["linear"], ["zoom"],
-            10, 2,
-            15, 6
-          ],
-          "circle-color": "#22c55e",
-          "circle-opacity": 0.6,
-          "circle-stroke-width": 1,
-          "circle-stroke-color": "#ffffff",
-        },
-      });
-
-      // Add containers source
+      // === CONTAINERS ===
       map.current.addSource("containers", {
         type: "geojson",
         data: { type: "FeatureCollection", features: [] },
       });
 
-      // Container layer
       map.current.addLayer({
         id: "containers",
         type: "circle",
@@ -186,7 +231,7 @@ export default function Map({ filters, onMeldingClick, selectedMelding }: MapPro
         },
       });
 
-      // Click handler for meldingen
+      // === CLICK HANDLERS ===
       const handleMeldingClick = (e: maplibregl.MapLayerMouseEvent) => {
         if (e.features && e.features[0]) {
           const props = e.features[0].properties;
@@ -212,14 +257,14 @@ export default function Map({ filters, onMeldingClick, selectedMelding }: MapPro
         }
       };
 
-      map.current.on("click", "meldingen-open", handleMeldingClick);
-      map.current.on("click", "meldingen-closed", handleMeldingClick);
+      map.current.on("click", "meldingen-open-points", handleMeldingClick);
+      map.current.on("click", "meldingen-closed-points", handleMeldingClick);
 
       // Click on cluster to zoom in
-      map.current.on("click", "meldingen-clusters", (e) => {
+      const handleClusterClick = (sourceId: string) => (e: maplibregl.MapLayerMouseEvent) => {
         if (!map.current || !e.features?.[0]) return;
         const clusterId = e.features[0].properties?.cluster_id;
-        const source = map.current.getSource("meldingen") as maplibregl.GeoJSONSource;
+        const source = map.current.getSource(sourceId) as maplibregl.GeoJSONSource;
 
         source.getClusterExpansionZoom(clusterId, (err, zoom) => {
           if (err || !map.current || !e.features?.[0]) return;
@@ -231,27 +276,24 @@ export default function Map({ filters, onMeldingClick, selectedMelding }: MapPro
             });
           }
         });
-      });
+      };
 
-      // Cursor change on hover
-      map.current.on("mouseenter", "meldingen-clusters", () => {
-        if (map.current) map.current.getCanvas().style.cursor = "pointer";
-      });
-      map.current.on("mouseleave", "meldingen-clusters", () => {
-        if (map.current) map.current.getCanvas().style.cursor = "";
-      });
-      map.current.on("mouseenter", "meldingen-open", () => {
-        if (map.current) map.current.getCanvas().style.cursor = "pointer";
-      });
-      map.current.on("mouseleave", "meldingen-open", () => {
-        if (map.current) map.current.getCanvas().style.cursor = "";
-      });
-      map.current.on("mouseenter", "meldingen-closed", () => {
-        if (map.current) map.current.getCanvas().style.cursor = "pointer";
-      });
-      map.current.on("mouseleave", "meldingen-closed", () => {
-        if (map.current) map.current.getCanvas().style.cursor = "";
-      });
+      map.current.on("click", "meldingen-open-clusters", handleClusterClick("meldingen-open"));
+      map.current.on("click", "meldingen-closed-clusters", handleClusterClick("meldingen-closed"));
+
+      // Cursor changes
+      const layers = [
+        "meldingen-open-clusters", "meldingen-open-points",
+        "meldingen-closed-clusters", "meldingen-closed-points"
+      ];
+      for (const layer of layers) {
+        map.current.on("mouseenter", layer, () => {
+          if (map.current) map.current.getCanvas().style.cursor = "pointer";
+        });
+        map.current.on("mouseleave", layer, () => {
+          if (map.current) map.current.getCanvas().style.cursor = "";
+        });
+      }
 
       setLoaded(true);
       loadContainers();
@@ -263,15 +305,23 @@ export default function Map({ filters, onMeldingClick, selectedMelding }: MapPro
     };
   }, []);
 
-  // Update meldingen data when it changes
+  // Update open meldingen data
   useEffect(() => {
     if (!map.current || !loaded) return;
-
-    const source = map.current.getSource("meldingen") as maplibregl.GeoJSONSource;
+    const source = map.current.getSource("meldingen-open") as maplibregl.GeoJSONSource;
     if (source) {
-      source.setData(meldingenData as unknown as GeoJSON.FeatureCollection);
+      source.setData(openData as GeoJSON.FeatureCollection);
     }
-  }, [meldingenData, loaded]);
+  }, [openData, loaded]);
+
+  // Update closed meldingen data
+  useEffect(() => {
+    if (!map.current || !loaded) return;
+    const source = map.current.getSource("meldingen-closed") as maplibregl.GeoJSONSource;
+    if (source) {
+      source.setData(closedData as GeoJSON.FeatureCollection);
+    }
+  }, [closedData, loaded]);
 
   // Update layer visibility based on status filter
   useEffect(() => {
@@ -280,22 +330,20 @@ export default function Map({ filters, onMeldingClick, selectedMelding }: MapPro
     const showOpen = filters.status === "all" || filters.status === "open";
     const showClosed = filters.status === "all" || filters.status === "afgesloten";
 
-    map.current.setLayoutProperty(
-      "meldingen-open",
-      "visibility",
-      showOpen ? "visible" : "none"
-    );
-    map.current.setLayoutProperty(
-      "meldingen-closed",
-      "visibility",
-      showClosed ? "visible" : "none"
-    );
+    const openLayers = ["meldingen-open-clusters", "meldingen-open-cluster-count", "meldingen-open-points"];
+    const closedLayers = ["meldingen-closed-clusters", "meldingen-closed-cluster-count", "meldingen-closed-points"];
+
+    for (const layer of openLayers) {
+      map.current.setLayoutProperty(layer, "visibility", showOpen ? "visible" : "none");
+    }
+    for (const layer of closedLayers) {
+      map.current.setLayoutProperty(layer, "visibility", showClosed ? "visible" : "none");
+    }
   }, [filters.status, loaded]);
 
   // Update containers visibility
   useEffect(() => {
     if (!map.current || !loaded) return;
-
     map.current.setLayoutProperty(
       "containers",
       "visibility",
@@ -306,7 +354,6 @@ export default function Map({ filters, onMeldingClick, selectedMelding }: MapPro
   // Fly to selected melding
   useEffect(() => {
     if (!map.current || !selectedMelding) return;
-
     map.current.flyTo({
       center: selectedMelding.geometry.coordinates,
       zoom: 15,
