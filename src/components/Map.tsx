@@ -83,68 +83,33 @@ export default function Map({ filters, onMeldingClick, selectedMelding }: MapPro
     map.current.on("load", () => {
       if (!map.current) return;
 
-      // === OPEN MELDINGEN (RED) - Separate source with clustering ===
-      map.current.addSource("meldingen-open", {
+      // === CONTAINERS (added first so they render below meldingen) ===
+      map.current.addSource("containers", {
         type: "geojson",
         data: { type: "FeatureCollection", features: [] },
-        cluster: true,
-        clusterMaxZoom: 14,
-        clusterRadius: 40,
       });
 
-      // Open clusters (red)
       map.current.addLayer({
-        id: "meldingen-open-clusters",
+        id: "containers",
         type: "circle",
-        source: "meldingen-open",
-        filter: ["has", "point_count"],
+        source: "containers",
         paint: {
-          "circle-color": "#ef4444",
-          "circle-radius": [
-            "step",
-            ["get", "point_count"],
-            12, 5, 16, 20, 20,
+          "circle-radius": 4,
+          "circle-color": [
+            "match",
+            ["get", "fractieOmschrijving"],
+            "Rest", "#6b7280",
+            "Papier", "#3b82f6",
+            "Glas", "#10b981",
+            "Textiel", "#8b5cf6",
+            "Plastic", "#f59e0b",
+            "#6b7280"
           ],
-          "circle-stroke-width": 2,
-          "circle-stroke-color": "#ffffff",
+          "circle-opacity": 0.7,
         },
       });
 
-      // Open cluster count
-      map.current.addLayer({
-        id: "meldingen-open-cluster-count",
-        type: "symbol",
-        source: "meldingen-open",
-        filter: ["has", "point_count"],
-        layout: {
-          "text-field": "{point_count_abbreviated}",
-          "text-size": 11,
-        },
-        paint: {
-          "text-color": "#ffffff",
-        },
-      });
-
-      // Open unclustered points
-      map.current.addLayer({
-        id: "meldingen-open-points",
-        type: "circle",
-        source: "meldingen-open",
-        filter: ["!", ["has", "point_count"]],
-        paint: {
-          "circle-radius": [
-            "interpolate", ["linear"], ["zoom"],
-            10, 4,
-            15, 8
-          ],
-          "circle-color": "#ef4444",
-          "circle-opacity": 0.9,
-          "circle-stroke-width": 1,
-          "circle-stroke-color": "#ffffff",
-        },
-      });
-
-      // === CLOSED MELDINGEN (GREEN) - Separate source with clustering ===
+      // === CLOSED MELDINGEN (GREEN) - added before open so open appears on top ===
       map.current.addSource("meldingen-closed", {
         type: "geojson",
         data: { type: "FeatureCollection", features: [] },
@@ -205,29 +170,64 @@ export default function Map({ filters, onMeldingClick, selectedMelding }: MapPro
         },
       });
 
-      // === CONTAINERS ===
-      map.current.addSource("containers", {
+      // === OPEN MELDINGEN (RED) - added last so they appear on top ===
+      map.current.addSource("meldingen-open", {
         type: "geojson",
         data: { type: "FeatureCollection", features: [] },
+        cluster: true,
+        clusterMaxZoom: 14,
+        clusterRadius: 40,
       });
 
+      // Open clusters (red)
       map.current.addLayer({
-        id: "containers",
+        id: "meldingen-open-clusters",
         type: "circle",
-        source: "containers",
+        source: "meldingen-open",
+        filter: ["has", "point_count"],
         paint: {
-          "circle-radius": 4,
-          "circle-color": [
-            "match",
-            ["get", "fractieOmschrijving"],
-            "Rest", "#6b7280",
-            "Papier", "#3b82f6",
-            "Glas", "#10b981",
-            "Textiel", "#8b5cf6",
-            "Plastic", "#f59e0b",
-            "#6b7280"
+          "circle-color": "#ef4444",
+          "circle-radius": [
+            "step",
+            ["get", "point_count"],
+            12, 5, 16, 20, 20,
           ],
-          "circle-opacity": 0.7,
+          "circle-stroke-width": 2,
+          "circle-stroke-color": "#ffffff",
+        },
+      });
+
+      // Open cluster count
+      map.current.addLayer({
+        id: "meldingen-open-cluster-count",
+        type: "symbol",
+        source: "meldingen-open",
+        filter: ["has", "point_count"],
+        layout: {
+          "text-field": "{point_count_abbreviated}",
+          "text-size": 11,
+        },
+        paint: {
+          "text-color": "#ffffff",
+        },
+      });
+
+      // Open unclustered points
+      map.current.addLayer({
+        id: "meldingen-open-points",
+        type: "circle",
+        source: "meldingen-open",
+        filter: ["!", ["has", "point_count"]],
+        paint: {
+          "circle-radius": [
+            "interpolate", ["linear"], ["zoom"],
+            10, 4,
+            15, 8
+          ],
+          "circle-color": "#ef4444",
+          "circle-opacity": 0.9,
+          "circle-stroke-width": 1,
+          "circle-stroke-color": "#ffffff",
         },
       });
 
