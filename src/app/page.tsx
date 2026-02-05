@@ -7,7 +7,6 @@ import type { Melding, Filters as FiltersType } from "@/types";
 import FiltersComponent from "@/components/Filters";
 import Ticker from "@/components/Ticker";
 import Pressure from "@/components/Pressure";
-import Backlog from "@/components/Backlog";
 import Fractie from "@/components/Fractie";
 import Trends from "@/components/Trends";
 import DetailDrawer from "@/components/DetailDrawer";
@@ -21,7 +20,7 @@ const Map = dynamic(() => import("@/components/Map"), {
   ),
 });
 
-type View = "ticker" | "pressure" | "backlog" | "fractie" | "trends";
+type View = "ticker" | "trends" | "pressure" | "fractie";
 type HotspotSelection = {
   center: [number, number];
   radiusMeters: number;
@@ -157,7 +156,7 @@ function HomeContent() {
           } fixed md:relative right-0 top-0 h-full md:translate-x-0 z-40`}
         >
           <div className="flex border-b border-gray-800">
-            {(["ticker", "pressure", "backlog", "fractie", "trends"] as const).map((v) => (
+            {(["ticker", "trends", "pressure", "fractie"] as const).map((v) => (
               <button
                 key={v}
                 onClick={() => setView(v)}
@@ -167,7 +166,7 @@ function HomeContent() {
                     : "text-gray-400 hover:text-white"
                 }`}
               >
-                {v === "ticker" ? "Feed" : v === "pressure" ? "Hotspots" : v === "backlog" ? "Backlog" : v === "fractie" ? "Fractie" : "Trends"}
+                {v === "ticker" ? "Feed" : v === "trends" ? "Trends" : v === "pressure" ? "Hotspots" : "Fractie"}
               </button>
             ))}
           </div>
@@ -180,10 +179,9 @@ function HomeContent() {
                 selectedMelding={selectedMelding}
               />
             )}
-            {view === "pressure" && <Pressure onHotspotClick={handleHotspotClick} />}
-            {view === "backlog" && <Backlog />}
-            {view === "fractie" && <Fractie filters={filters} />}
             {view === "trends" && <Trends />}
+            {view === "pressure" && <Pressure onHotspotClick={handleHotspotClick} />}
+            {view === "fractie" && <Fractie filters={filters} />}
           </div>
         </aside>
       </div>
