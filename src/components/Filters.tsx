@@ -15,9 +15,9 @@ const timeRanges = [
 ] as const;
 
 const statuses = [
-  { value: "all", label: "Alle" },
-  { value: "open", label: "Open" },
-  { value: "afgesloten", label: "Afgesloten" },
+  { value: "all", label: "Alle", color: "bg-gray-500" },
+  { value: "open", label: "Open", color: "bg-red-500" },
+  { value: "afgesloten", label: "Gesloten", color: "bg-green-500" },
 ] as const;
 
 export default function Filters({ filters, onChange }: FiltersProps) {
@@ -55,7 +55,10 @@ export default function Filters({ filters, onChange }: FiltersProps) {
                   : "bg-gray-800 text-gray-300 hover:bg-gray-700"
               }`}
             >
-              {s.label}
+              <span className="inline-flex items-center gap-2">
+                <span className={`w-2 h-2 rounded-full ${s.color}`} />
+                <span>{s.label}</span>
+              </span>
             </button>
           ))}
         </div>

@@ -57,4 +57,6 @@ export interface Hotspot {
   openCount: number;
   closedCount: number;
   center: [number, number];
+  resolutionRate: number; // percentage (0-100)
+  avgResolutionDays: number | null; // gemiddelde doorlooptijd in dagen
 }

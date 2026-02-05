@@ -8,7 +8,7 @@ import FiltersComponent from "@/components/Filters";
 import Ticker from "@/components/Ticker";
 import Pressure from "@/components/Pressure";
 import Backlog from "@/components/Backlog";
-import Weight from "@/components/Weight";
+import Fractie from "@/components/Fractie";
 import DetailDrawer from "@/components/DetailDrawer";
 
 const Map = dynamic(() => import("@/components/Map"), {
@@ -20,7 +20,7 @@ const Map = dynamic(() => import("@/components/Map"), {
   ),
 });
 
-type View = "ticker" | "pressure" | "backlog" | "gewicht";
+type View = "ticker" | "pressure" | "backlog" | "fractie";
 type HotspotSelection = {
   center: [number, number];
   radiusMeters: number;
@@ -72,14 +72,32 @@ function HomeContent() {
           <h1 className="text-xl font-bold tracking-tight">TrashPulse</h1>
           <span className="text-sm text-gray-500">Amsterdam</span>
         </div>
-        <button
-          onClick={() => setSidebarOpen(!sidebarOpen)}
-          className="md:hidden p-2 hover:bg-gray-800 rounded"
-        >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-          </svg>
-        </button>
+        <div className="flex items-center gap-2">
+          <a
+            href="https://github.com/yannicklansink/amsterdam-trashpulse"
+            target="_blank"
+            rel="noreferrer"
+            className="hidden sm:inline-flex items-center gap-2 px-3 py-1.5 text-xs font-semibold text-gray-200 border border-gray-700 rounded-full hover:bg-gray-800 transition"
+          >
+            GitHub
+          </a>
+          <a
+            href="https://www.linkedin.com/in/yannick-lansink-4b6316160/"
+            target="_blank"
+            rel="noreferrer"
+            className="hidden sm:inline-flex items-center gap-2 px-3 py-1.5 text-xs font-semibold text-gray-200 border border-gray-700 rounded-full hover:bg-gray-800 transition"
+          >
+            Made by Yannick : Linkedin
+          </a>
+          <button
+            onClick={() => setSidebarOpen(!sidebarOpen)}
+            className="md:hidden p-2 hover:bg-gray-800 rounded"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+          </button>
+        </div>
       </header>
 
       <FiltersComponent filters={filters} onChange={setFilters} />
@@ -138,17 +156,17 @@ function HomeContent() {
           } fixed md:relative right-0 top-0 h-full md:translate-x-0 z-40`}
         >
           <div className="flex border-b border-gray-800">
-            {(["ticker", "pressure", "backlog", "gewicht"] as const).map((v) => (
+            {(["ticker", "pressure", "backlog", "fractie"] as const).map((v) => (
               <button
                 key={v}
                 onClick={() => setView(v)}
-                className={`flex-1 px-3 py-3 text-sm font-medium transition ${
+                className={`flex-1 px-2 py-3 text-xs font-medium transition ${
                   view === v
                     ? "text-white border-b-2 border-blue-500"
                     : "text-gray-400 hover:text-white"
                 }`}
               >
-                {v === "ticker" ? "Feed" : v === "pressure" ? "Hotspots" : v === "backlog" ? "Backlog" : "Gewicht"}
+                {v === "ticker" ? "Feed" : v === "pressure" ? "Hotspots" : v === "backlog" ? "Backlog" : "Fractie"}
               </button>
             ))}
           </div>
@@ -163,7 +181,7 @@ function HomeContent() {
             )}
             {view === "pressure" && <Pressure onHotspotClick={handleHotspotClick} />}
             {view === "backlog" && <Backlog />}
-            {view === "gewicht" && <Weight filters={filters} onLocationClick={handleHotspotClick} />}
+            {view === "fractie" && <Fractie filters={filters} />}
           </div>
         </aside>
       </div>

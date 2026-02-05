@@ -19,22 +19,34 @@ export default function Pressure({ onHotspotClick }: PressureProps) {
     setLoading(true);
     try {
       const res = await fetch(
-        "https://api.data.amsterdam.nl/v1/meldingen/meldingen?_format=json&hoofdcategorie=Afval&_pageSize=500"
+        "https://api.data.amsterdam.nl/v1/meldingen/meldingen?_format=json&hoofdcategorie=Afval&_pageSize=500&_sort=-datumMelding"
       );
       const data = await res.json();
       const meldingen = data._embedded?.meldingen || [];
 
       // Aggregate by buurt
-      const buurtMap = new Map<string, { open: number; closed: number; coords: [number, number][] }>();
+      const buurtMap = new Map<string, {
+        open: number;
+        closed: number;
+        coords: [number, number][];
+        resolutionDays: number[];
+      }>();
 
       for (const m of meldingen) {
         const buurt = m.gbdBuurtNaam || "Onbekend";
         if (!buurtMap.has(buurt)) {
-          buurtMap.set(buurt, { open: 0, closed: 0, coords: [] });
+          buurtMap.set(buurt, { open: 0, closed: 0, coords: [], resolutionDays: [] });
         }
         const b = buurtMap.get(buurt)!;
-        if (m.externeStatus === "Open") b.open++;
-        else b.closed++;
+        if (m.externeStatus === "Open") {
+          b.open++;
+        } else {
+          b.closed++;
+          // Track resolution time for closed meldingen
+          if (m.doorlooptijdDagen != null && m.doorlooptijdDagen > 0) {
+            b.resolutionDays.push(m.doorlooptijdDagen);
+          }
+        }
         if (m.longitudeVisualisatie && m.latitudeVisualisatie) {
           b.coords.push([m.longitudeVisualisatie, m.latitudeVisualisatie]);
         }
@@ -44,9 +56,17 @@ export default function Pressure({ onHotspotClick }: PressureProps) {
       const spots: Hotspot[] = [];
       buurtMap.forEach((v, k) => {
         if (k === "Onbekend" || v.coords.length === 0) return;
+        const total = v.open + v.closed;
         const score = v.open + 0.25 * v.closed;
         const avgLon = v.coords.reduce((s, c) => s + c[0], 0) / v.coords.length;
         const avgLat = v.coords.reduce((s, c) => s + c[1], 0) / v.coords.length;
+
+        // Calculate resolution rate and average resolution time
+        const resolutionRate = total > 0 ? Math.round((v.closed / total) * 100) : 0;
+        const avgResolutionDays = v.resolutionDays.length > 0
+          ? Math.round((v.resolutionDays.reduce((s, d) => s + d, 0) / v.resolutionDays.length) * 10) / 10
+          : null;
+
         spots.push({
           id: k,
           name: k,
@@ -54,6 +74,8 @@ export default function Pressure({ onHotspotClick }: PressureProps) {
           openCount: v.open,
           closedCount: v.closed,
           center: [avgLon, avgLat],
+          resolutionRate,
+          avgResolutionDays,
         });
       });
 
@@ -69,8 +91,8 @@ export default function Pressure({ onHotspotClick }: PressureProps) {
   return (
     <div className="h-full flex flex-col">
       <div className="p-4 border-b border-gray-800">
-        <h2 className="text-lg font-semibold">Pressure Score</h2>
-        <p className="text-sm text-gray-400">Top 20 hotspots per buurt</p>
+        <h2 className="text-lg font-semibold">Afhandeling per Buurt</h2>
+        <p className="text-sm text-gray-400">Percentage opgeloste meldingen</p>
       </div>
 
       <div className="flex-1 overflow-y-auto">
@@ -78,29 +100,42 @@ export default function Pressure({ onHotspotClick }: PressureProps) {
           <div className="p-4 text-gray-400">Laden...</div>
         ) : (
           <ul className="divide-y divide-gray-800">
-            {hotspots.map((h, i) => (
-              <li
-                key={h.id}
-                onClick={() => onHotspotClick(h.center)}
-                className="p-3 cursor-pointer hover:bg-gray-800 transition"
-              >
-                <div className="flex items-center gap-3">
-                  <span className="w-6 h-6 flex items-center justify-center text-xs font-bold bg-gray-800 rounded">
-                    {i + 1}
-                  </span>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">{h.name}</p>
-                    <p className="text-xs text-gray-500">
-                      {h.openCount} open · {h.closedCount} gesloten
-                    </p>
+            {hotspots.map((h, i) => {
+              // Color based on resolution rate
+              const rateColor = h.resolutionRate >= 80
+                ? "text-green-400"
+                : h.resolutionRate >= 50
+                  ? "text-yellow-400"
+                  : "text-red-400";
+
+              const total = h.openCount + h.closedCount;
+
+              return (
+                <li
+                  key={h.id}
+                  onClick={() => onHotspotClick(h.center)}
+                  className="p-3 cursor-pointer hover:bg-gray-800 transition"
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="w-6 h-6 flex items-center justify-center text-xs font-bold bg-gray-800 rounded">
+                      {i + 1}
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">{h.name}</p>
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className="text-xs text-red-400">{h.openCount} open</span>
+                        <span className="text-xs text-gray-600">·</span>
+                        <span className="text-xs text-green-400">{h.closedCount} opgelost</span>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className={`text-lg font-bold ${rateColor}`}>{h.resolutionRate}%</p>
+                      <p className="text-xs text-gray-500">{total} totaal</p>
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <p className="text-lg font-bold text-orange-400">{h.score}</p>
-                    <p className="text-xs text-gray-500">score</p>
-                  </div>
-                </div>
-              </li>
-            ))}
+                </li>
+              );
+            })}
           </ul>
         )}
       </div>

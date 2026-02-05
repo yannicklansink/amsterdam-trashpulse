@@ -5,6 +5,23 @@ import type { Filters } from "@/types";
 
 const DEBOUNCE_DELAY = 300;
 
+// Fractie kleuren (consistent met container markers)
+export const FRACTIE_COLORS: Record<string, string> = {
+  "Rest": "#6b7280",
+  "Papier": "#3b82f6",
+  "Glas": "#10b981",
+  "Textiel": "#8b5cf6",
+  "Plastic": "#f59e0b",
+};
+
+export interface FractieWeight {
+  fractie: string;
+  totalWeight: number;
+  count: number;
+  percentage: number;
+  color: string;
+}
+
 export interface BuurtWeight {
   buurtNaam: string;
   totalWeight: number; // kg
@@ -25,6 +42,7 @@ export interface RecentWeging {
 export interface WegingData {
   buurtTotals: BuurtWeight[];
   recentWegingen: RecentWeging[];
+  fractieTotals: FractieWeight[];
   trend: {
     currentTotal: number;
     previousTotal: number;
@@ -81,6 +99,7 @@ export function useWeging(filters: Filters) {
   const [data, setData] = useState<WegingData>({
     buurtTotals: [],
     recentWegingen: [],
+    fractieTotals: [],
     trend: { currentTotal: 0, previousTotal: 0, percentageChange: 0 },
     loading: true,
   });
@@ -104,6 +123,7 @@ export function useWeging(filters: Filters) {
 
       // Filter and process data
       const buurtMap = new Map<string, { weight: number; count: number; coords: [number, number][] }>();
+      const fractieMap = new Map<string, { weight: number; count: number }>();
       let currentTotal = 0;
       let previousTotal = 0;
       const recent: RecentWeging[] = [];
@@ -131,6 +151,17 @@ export function useWeging(filters: Filters) {
                 count: 1,
                 coords: [w.geometrie.coordinates],
               });
+            }
+          }
+
+          // Aggregate by fractie
+          if (w.fractieOmschrijving) {
+            const existing = fractieMap.get(w.fractieOmschrijving);
+            if (existing) {
+              existing.weight += weightKg;
+              existing.count += 1;
+            } else {
+              fractieMap.set(w.fractieOmschrijving, { weight: weightKg, count: 1 });
             }
           }
 
@@ -168,6 +199,19 @@ export function useWeging(filters: Filters) {
 
       buurtTotals.sort((a, b) => b.totalWeight - a.totalWeight);
 
+      // Convert fractie map to sorted array with percentages
+      const fractieTotals: FractieWeight[] = [];
+      fractieMap.forEach((v, k) => {
+        fractieTotals.push({
+          fractie: k,
+          totalWeight: Math.round(v.weight * 10) / 10,
+          count: v.count,
+          percentage: currentTotal > 0 ? Math.round((v.weight / currentTotal) * 100) : 0,
+          color: FRACTIE_COLORS[k] || "#9ca3af",
+        });
+      });
+      fractieTotals.sort((a, b) => b.totalWeight - a.totalWeight);
+
       // Calculate trend percentage
       const percentageChange = previousTotal > 0
         ? Math.round(((currentTotal - previousTotal) / previousTotal) * 100)
@@ -176,6 +220,7 @@ export function useWeging(filters: Filters) {
       setData({
         buurtTotals: buurtTotals.slice(0, 15),
         recentWegingen: recent.slice(0, 10),
+        fractieTotals,
         trend: {
           currentTotal: Math.round(currentTotal),
           previousTotal: Math.round(previousTotal),
