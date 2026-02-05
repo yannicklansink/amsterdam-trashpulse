@@ -20,6 +20,10 @@ const Map = dynamic(() => import("@/components/Map"), {
 });
 
 type View = "ticker" | "pressure" | "backlog";
+type HotspotSelection = {
+  center: [number, number];
+  radiusMeters: number;
+};
 
 function HomeContent() {
   const router = useRouter();
@@ -37,6 +41,7 @@ function HomeContent() {
   );
 
   const [selectedMelding, setSelectedMelding] = useState<Melding | null>(null);
+  const [selectedHotspot, setSelectedHotspot] = useState<HotspotSelection | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
   useEffect(() => {
@@ -50,42 +55,13 @@ function HomeContent() {
   }, [filters, view, router]);
 
   const handleMeldingClick = useCallback((melding: Melding | null) => {
+    setSelectedHotspot(null);
     setSelectedMelding(melding);
   }, []);
 
   function handleHotspotClick(center: [number, number]) {
-    setSelectedMelding({
-      id: "hotspot",
-      meldingsnummer: "",
-      hoofdcategorie: "",
-      subcategorie: "",
-      thema: "",
-      directie: "",
-      regie: "",
-      datumMelding: "",
-      tijdstipMelding: "",
-      datumOverlast: null,
-      tijdstipOverlast: null,
-      datumAfgerond: null,
-      tijdstipAfgerond: null,
-      uitersteAfhandeldatum: null,
-      afhandeltermijn: null,
-      status: "",
-      externeStatus: "",
-      kpiAfhandeltijd: null,
-      doorlooptijdDagen: null,
-      werkelijkeDoorlooptijdDagen: null,
-      anoniemGemeld: null,
-      terugkoppelingMelderTevreden: null,
-      terugkoppelingMelder: null,
-      meldingType: null,
-      meldingSoort: null,
-      buurtNaam: "",
-      wijkNaam: "",
-      stadsdeelNaam: "",
-      geometry: { type: "Point", coordinates: center },
-    });
-    setTimeout(() => setSelectedMelding(null), 100);
+    setSelectedMelding(null);
+    setSelectedHotspot({ center, radiusMeters: 300 });
   }
 
   return (
@@ -113,6 +89,7 @@ function HomeContent() {
             filters={filters}
             onMeldingClick={handleMeldingClick}
             selectedMelding={selectedMelding}
+            selectedHotspot={selectedHotspot}
           />
 
           <div className="absolute bottom-4 left-4 bg-gray-900/90 backdrop-blur p-3 rounded-lg text-sm">

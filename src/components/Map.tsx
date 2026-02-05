@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useMemo } from "react";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
+import { circle as turfCircle } from "@turf/turf";
 import type { Melding, Filters } from "@/types";
 import { useMeldingen, type MeldingFeature } from "@/hooks/useMeldingen";
 
@@ -10,9 +11,15 @@ interface MapProps {
   filters: Filters;
   onMeldingClick: (melding: Melding | null) => void;
   selectedMelding: Melding | null;
+  selectedHotspot: { center: [number, number]; radiusMeters: number } | null;
 }
 
-export default function Map({ filters, onMeldingClick, selectedMelding }: MapProps) {
+export default function Map({
+  filters,
+  onMeldingClick,
+  selectedMelding,
+  selectedHotspot,
+}: MapProps) {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<maplibregl.Map | null>(null);
   const [loaded, setLoaded] = useState(false);
@@ -107,6 +114,33 @@ export default function Map({ filters, onMeldingClick, selectedMelding }: MapPro
             "#6b7280"
           ],
           "circle-opacity": 0.7,
+        },
+      });
+
+      // === SELECTED HOTSPOT AREA (below meldingen) ===
+      map.current.addSource("selected-hotspot", {
+        type: "geojson",
+        data: { type: "FeatureCollection", features: [] },
+      });
+
+      map.current.addLayer({
+        id: "selected-hotspot-fill",
+        type: "fill",
+        source: "selected-hotspot",
+        paint: {
+          "fill-color": "#f97316",
+          "fill-opacity": 0.15,
+        },
+      });
+
+      map.current.addLayer({
+        id: "selected-hotspot-outline",
+        type: "line",
+        source: "selected-hotspot",
+        paint: {
+          "line-color": "#f97316",
+          "line-width": 2,
+          "line-opacity": 0.9,
         },
       });
 
@@ -473,6 +507,29 @@ export default function Map({ filters, onMeldingClick, selectedMelding }: MapPro
       }
     };
   }, [selectedMelding, loaded]);
+
+  // Draw a circular area around the selected hotspot
+  useEffect(() => {
+    if (!map.current || !loaded) return;
+    const source = map.current.getSource("selected-hotspot") as maplibregl.GeoJSONSource;
+    if (!source) return;
+
+    if (selectedHotspot) {
+      const radiusKm = selectedHotspot.radiusMeters / 1000;
+      const circle = turfCircle(selectedHotspot.center, radiusKm, {
+        steps: 64,
+        units: "kilometers",
+      });
+      source.setData(circle as GeoJSON.Feature);
+      map.current.flyTo({
+        center: selectedHotspot.center,
+        zoom: 13,
+        duration: 800,
+      });
+    } else {
+      source.setData({ type: "FeatureCollection", features: [] });
+    }
+  }, [selectedHotspot, loaded]);
 
   async function loadContainers() {
     try {
