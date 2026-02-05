@@ -8,6 +8,7 @@ import FiltersComponent from "@/components/Filters";
 import Ticker from "@/components/Ticker";
 import Pressure from "@/components/Pressure";
 import Backlog from "@/components/Backlog";
+import Weight from "@/components/Weight";
 import DetailDrawer from "@/components/DetailDrawer";
 
 const Map = dynamic(() => import("@/components/Map"), {
@@ -19,7 +20,7 @@ const Map = dynamic(() => import("@/components/Map"), {
   ),
 });
 
-type View = "ticker" | "pressure" | "backlog";
+type View = "ticker" | "pressure" | "backlog" | "gewicht";
 type HotspotSelection = {
   center: [number, number];
   radiusMeters: number;
@@ -137,17 +138,17 @@ function HomeContent() {
           } fixed md:relative right-0 top-0 h-full md:translate-x-0 z-40`}
         >
           <div className="flex border-b border-gray-800">
-            {(["ticker", "pressure", "backlog"] as const).map((v) => (
+            {(["ticker", "pressure", "backlog", "gewicht"] as const).map((v) => (
               <button
                 key={v}
                 onClick={() => setView(v)}
-                className={`flex-1 px-4 py-3 text-sm font-medium transition ${
+                className={`flex-1 px-3 py-3 text-sm font-medium transition ${
                   view === v
                     ? "text-white border-b-2 border-blue-500"
                     : "text-gray-400 hover:text-white"
                 }`}
               >
-                {v === "ticker" ? "Feed" : v === "pressure" ? "Hotspots" : "Backlog"}
+                {v === "ticker" ? "Feed" : v === "pressure" ? "Hotspots" : v === "backlog" ? "Backlog" : "Gewicht"}
               </button>
             ))}
           </div>
@@ -162,6 +163,7 @@ function HomeContent() {
             )}
             {view === "pressure" && <Pressure onHotspotClick={handleHotspotClick} />}
             {view === "backlog" && <Backlog />}
+            {view === "gewicht" && <Weight filters={filters} onLocationClick={handleHotspotClick} />}
           </div>
         </aside>
       </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import type { Melding, Filters } from "@/types";
 
 const DEBOUNCE_DELAY = 300;
@@ -35,31 +35,11 @@ export default function Ticker({ filters, onMeldingClick, selectedMelding }: Tic
   const [isRefreshing, setIsRefreshing] = useState(false);
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const hasDataRef = useRef(false);
 
   useEffect(() => {
-    // Clear previous debounce and interval
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    if (intervalRef.current) clearInterval(intervalRef.current);
-
-    // Show refreshing indicator if we have data, loading if not
-    if (meldingen.length > 0) {
-      setIsRefreshing(true);
-    } else {
-      setLoading(true);
-    }
-
-    // Debounce the fetch call
-    debounceRef.current = setTimeout(() => {
-      fetchMeldingen();
-      // Set up refresh interval after initial fetch
-      intervalRef.current = setInterval(fetchMeldingen, 30000);
-    }, DEBOUNCE_DELAY);
-
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-      if (intervalRef.current) clearInterval(intervalRef.current);
-    };
-  }, [filters.timeRange, filters.status]);
+    hasDataRef.current = meldingen.length > 0;
+  }, [meldingen.length]);
 
   function getTimeRangeCutoff(timeRange: string): Date {
     const now = new Date();
@@ -77,7 +57,7 @@ export default function Ticker({ filters, onMeldingClick, selectedMelding }: Tic
     }
   }
 
-  async function fetchMeldingen() {
+  const fetchMeldingen = useCallback(async () => {
     try {
       // Fetch more data for longer time ranges
       const pageSize = filters.timeRange === "30d" ? "200" : filters.timeRange === "7d" ? "100" : "50";
@@ -156,7 +136,32 @@ export default function Ticker({ filters, onMeldingClick, selectedMelding }: Tic
       setLoading(false);
       setIsRefreshing(false);
     }
-  }
+  }, [filters.status, filters.timeRange]);
+
+  useEffect(() => {
+    // Clear previous debounce and interval
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    if (intervalRef.current) clearInterval(intervalRef.current);
+
+    // Show refreshing indicator if we have data, loading if not
+    if (hasDataRef.current) {
+      setIsRefreshing(true);
+    } else {
+      setLoading(true);
+    }
+
+    // Debounce the fetch call
+    debounceRef.current = setTimeout(() => {
+      fetchMeldingen();
+      // Set up refresh interval after initial fetch
+      intervalRef.current = setInterval(fetchMeldingen, 30000);
+    }, DEBOUNCE_DELAY);
+
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
+  }, [filters.timeRange, filters.status, fetchMeldingen]);
 
   function formatTime(date: string, time: string) {
     if (!date) return "";

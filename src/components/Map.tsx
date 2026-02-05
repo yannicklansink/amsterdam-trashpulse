@@ -24,9 +24,14 @@ export default function Map({
   const map = useRef<maplibregl.Map | null>(null);
   const [loaded, setLoaded] = useState(false);
   const pulseAnimation = useRef<number | null>(null);
+  const onMeldingClickRef = useRef(onMeldingClick);
 
   // Use the shared hook to fetch meldingen as GeoJSON
   const { data: meldingenData } = useMeldingen(filters);
+
+  useEffect(() => {
+    onMeldingClickRef.current = onMeldingClick;
+  }, [onMeldingClick]);
 
   // Split data into open and closed
   const { openData, closedData } = useMemo(() => {
@@ -306,7 +311,7 @@ export default function Map({
           const props = e.features[0].properties;
           const geom = e.features[0].geometry;
           if (geom.type === "Point") {
-            onMeldingClick({
+            onMeldingClickRef.current({
               id: props?.id || "",
               meldingsnummer: props?.meldingsnummer || "",
               hoofdcategorie: props?.hoofdcategorie || "",
@@ -348,13 +353,14 @@ export default function Map({
       map.current.on("click", "meldingen-closed-points", handleMeldingClick);
 
       // Click on cluster to zoom in
-      const handleClusterClick = (sourceId: string) => (e: maplibregl.MapLayerMouseEvent) => {
+      const handleClusterClick = (sourceId: string) => async (e: maplibregl.MapLayerMouseEvent) => {
         if (!map.current || !e.features?.[0]) return;
         const clusterId = e.features[0].properties?.cluster_id;
         const source = map.current.getSource(sourceId) as maplibregl.GeoJSONSource;
 
-        source.getClusterExpansionZoom(clusterId, (err, zoom) => {
-          if (err || !map.current || !e.features?.[0]) return;
+        try {
+          const zoom = await source.getClusterExpansionZoom(clusterId);
+          if (!map.current || !e.features?.[0]) return;
           const geom = e.features[0].geometry;
           if (geom.type === "Point") {
             map.current.easeTo({
@@ -362,7 +368,9 @@ export default function Map({
               zoom: zoom ?? 14,
             });
           }
-        });
+        } catch {
+          // Ignore cluster expansion errors
+        }
       };
 
       map.current.on("click", "meldingen-open-clusters", handleClusterClick("meldingen-open"));
@@ -451,7 +459,7 @@ export default function Map({
       pulseAnimation.current = null;
     }
 
-    if (selectedMelding && selectedMelding.id !== "hotspot") {
+    if (selectedMelding && selectedMelding.id !== "hotspot" && selectedMelding.geometry) {
       // Update highlight position
       source.setData({
         type: "FeatureCollection",
